@@ -1,10 +1,14 @@
 import requests, selectorlib
 import smtplib, ssl, os
 import time
+import sqlite3
 
 
 YOUR_EMAIL = "elaradomingos@gmail.com"
 APP_PASSWORD = os.getenv("GMAIL_PASSWORD")
+
+# Create connection
+connection = sqlite3.connect('data.db')
 
 URL = "https://programmer100.pythonanywhere.com/tours/"
 HEADERS = {
@@ -21,12 +25,21 @@ def extract(source):
     return value
 
 def store(extracted_text):
-    with open("extract.txt", "a") as file:
-        file.write(extracted_text + "\n")
+    row = extracted_text.split(",")
+    new_row = [item.strip() for item in row]
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO events VALUES(?,?,?)", new_row)
+    connection.commit()
 
 def read_file(extracted_text):
-    with open("extract.txt", "r") as file:
-        return file.read()
+    row = extracted_text.split(",")
+    new_row = [item.strip() for item in row]
+    band, city, date = new_row
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM events WHERE band=? AND date=? AND city=?", (band, date, city))
+    rows = cursor.fetchall()
+    print(rows)
+    return rows
 
 def email_send(message):
     host = "smtp.gmail.com"
@@ -50,9 +63,10 @@ if __name__ == '__main__':
     while True:
         scraped = scrape(URL)
         extracted = extract(scraped)
-        content = read_file(extracted)
+
         if extracted != "No upcoming tours":
-            if extracted not in content:
+            line = read_file(extracted)
+            if not line:
                 store(extracted)
                 email_send(extracted)
         print(extracted)
